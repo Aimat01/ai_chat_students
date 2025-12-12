@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Платформа для Школьников</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .language-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .lang-btn {
+            padding: 10px 20px;
+            border: 2px solid white;
+            background: transparent;
+            color: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .lang-btn:hover, .lang-btn.active {
+            background: white;
+            color: #667eea;
+        }
+
+        .chat-container {
+            height: 500px;
+            overflow-y: auto;
+            padding: 30px;
+            background: #f7f9fc;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message-content {
+            display: inline-block;
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            color: #333;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-bottom-left-radius: 5px;
+        }
+
+        .input-container {
+            padding: 20px 30px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+
+        #userInput {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        #userInput:focus {
+            border-color: #667eea;
+        }
+
+        #sendBtn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        #sendBtn:hover {
+            transform: scale(1.05);
+        }
+
+        #sendBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .commands {
+            padding: 10px 30px;
+            background: #fff8e1;
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+        }
+
+        .user-info {
+            padding: 15px 30px;
+            background: #e3f2fd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info input {
+            padding: 8px 15px;
+            border: 2px solid #667eea;
+            border-radius: 15px;
+            outline: none;
+        }
+
+        .clear-btn {
+            padding: 8px 15px;
+            background: #ff5252;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 AI Платформа для Школьников</h1>
+            <p>Твой умный помощник в учёбе</p>
+            <div class="language-selector">
+                <button class="lang-btn" data-lang="en">English</button>
+                <button class="lang-btn active" data-lang="ru">Русский</button>
+                <button class="lang-btn" data-lang="kk">Қазақша</button>
+            </div>
+        </div>
+
+        <div class="user-info">
+            <div>
+                <label>Твой ID: </label>
+                <input type="text" id="userId" placeholder="student" value="student">
+            </div>
+            <button class="clear-btn" onclick="clearChat()">Очистить чат</button>
+        </div>
+
+        <div class="commands">
+            💡 Команды: "конспект [тема]" для создания конспекта
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="message assistant">
+                <div class="message-content">
+                    Привет! 👋 Я твой AI-репетитор. Задавай любые вопросы по школьным предметам, и я помогу разобраться!
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Думаю...</p>
+        </div>
+
+        <div class="input-container">
+            <input 
+                type="text" 
+                id="userInput" 
+                placeholder="Задай вопрос..." 
+                onkeypress="handleKeyPress(event)"
+            >
+            <button id="sendBtn" onclick="sendMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+        // Конфигурация API
+        const API_URL = 'http://localhost:8000';  // Измените на ваш URL в продакшене
+        let currentLanguage = 'ru';
+
+        // Переводы интерфейса
+        const translations = {
+            en: {
+                title: '🎓 AI Platform for Students',
+                subtitle: 'Your smart learning assistant',
+                placeholder: 'Ask a question...',
+                send: 'Send',
+                clear: 'Clear chat',
+                thinking: 'Thinking...',
+                greeting: 'Hello! 👋 I\'m your AI tutor. Ask any questions about school subjects, and I\'ll help you understand!',
+                commands: '💡 Commands: "summary [topic]" to create a summary',
+                userId: 'Your ID: '
+            },
+            ru: {
+                title: '🎓 AI Платформа для Школьников',
+                subtitle: 'Твой умный помощник в учёбе',
+                placeholder: 'Задай вопрос...',
+                send: 'Отправить',
+                clear: 'Очистить чат',
+                thinking: 'Думаю...',
+                greeting: 'Привет! 👋 Я твой AI-репетитор. Задавай любые вопросы по школьным предметам, и я помогу разобраться!',
+                commands: '💡 Команды: "конспект [тема]" для создания конспекта',
+                userId: 'Твой ID: '
+            },
+            kk: {
+                title: '🎓 Оқушыларға арналған AI платформасы',
+                subtitle: 'Сенің ақылды көмекшің',
+                placeholder: 'Сұрақ қой...',
+                send: 'Жіберу',
+                clear: 'Чатты тазалау',
+                thinking: 'Ойланып жатырмын...',
+                greeting: 'Сәлем! 👋 Мен сенің AI-репетиторыңмын. Мектеп пәндері бойынша кез келген сұрақ қой, мен түсінуге көмектесемін!',
+                commands: '💡 Команды: "конспект [тақырып]" конспект жасау үшін',
+                userId: 'Сенің ID: '
+            }
+        };
+
+        // Выбор языка
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentLanguage = btn.dataset.lang;
+                updateUI();
+            });
+        });
+
+        // Обновление интерфейса
+        function updateUI() {
+            const t = translations[currentLanguage];
+            document.querySelector('.header h1').textContent = t.title;
+            document.querySelector('.header p').textContent = t.subtitle;
+            document.getElementById('userInput').placeholder = t.placeholder;
+            document.getElementById('sendBtn').textContent = t.send;
+            document.querySelector('.clear-btn').textContent = t.clear;
+            document.querySelector('.commands').textContent = t.commands;
+            document.querySelector('.user-info label').textContent = t.userId;
+        }
+
+        // Отправка сообщения
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            const userId = document.getElementById('userId').value || 'student';
+            
+            // Добавляем сообщение пользователя
+            addMessage(message, 'user');
+            input.value = '';
+            
+            // Показываем индикатор загрузки
+            showLoading(true);
+            disableSend(true);
+
+            try {
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        message: message,
+                        language: currentLanguage
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Ошибка сервера');
+                }
+
+                const data = await response.json();
+                
+                // Добавляем ответ AI
+                addMessage(data.response, 'assistant');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('❌ Произошла ошибка. Проверьте, запущен ли сервер API (python api_server.py)', 'assistant');
+            } finally {
+                showLoading(false);
+                disableSend(false);
+                input.focus();
+            }
+        }
+
+        // Добавление сообщения в чат
+        function addMessage(text, sender) {
+            const container = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = text;
+            
+            messageDiv.appendChild(contentDiv);
+            container.appendChild(messageDiv);
+            
+            // Прокрутка вниз
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Показать/скрыть индикатор загрузки
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            if (show) {
+                loading.classList.add('active');
+            } else {
+                loading.classList.remove('active');
+            }
+        }
+
+        // Блокировка кнопки отправки
+        function disableSend(disable) {
+            document.getElementById('sendBtn').disabled = disable;
+        }
+
+        // Обработка Enter
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Очистка чата
+        async function clearChat() {
+            const userId = document.getElementById('userId').value || 'student';
+            
+            try {
+                await fetch(`${API_URL}/session/${userId}?language=${currentLanguage}`, {
+                    method: 'DELETE'
+                });
+                
+                // Очищаем интерфейс
+                const container = document.getElementById('chatContainer');
+                container.innerHTML = '';
+                
+                const t = translations[currentLanguage];
+                addMessage(t.greeting, 'assistant');
+                
+            } catch (error) {
+                console.error('Error clearing chat:', error);
+            }
+        }
+
+        // Инициализация
+        window.onload = () => {
+            updateUI();
+        };
+    </script>
+</body>
+</html>
