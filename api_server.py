@@ -8,14 +8,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
-from flashcard import FlashcardSystem, FlashcardDeckConfig
+from flashcard import FlashcardDeckConfig, FlashcardSession, FlashcardSystem
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
-from flashcard import FlashcardDeckConfig, FlashcardSession, FlashcardSystem
 from quiz_system import QuizConfig, QuizResult, QuizSystem
 from school_ai_platform import SchoolAIPlatformV3
 
@@ -74,8 +72,6 @@ def save_db(file_path: Path, data: dict):
 # Загрузить существующие квизы при старте
 saved_quizzes = load_db(QUIZZES_DB_FILE)
 saved_results = load_db(QUIZ_RESULTS_DB_FILE)
-import json
-from pathlib import Path
 
 
 class LanguageSelect(BaseModel):
@@ -556,6 +552,9 @@ async def get_quiz_topics(language: str = "ru"):
 
 @app.post("/flashcards/generate-for-platform")
 async def generate_flashcards_for_platform(request: PlatformFlashcardGenerateRequest):
+    pass
+
+
 @app.post("/quiz/generate")
 async def generate_quiz(request: QuizGenerateRequest):
     """
