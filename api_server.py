@@ -429,7 +429,7 @@ async def generate_summary(request: SummaryRequest):
     """Сгенерировать конспект по теме"""
     try:
         platform = get_platform(request.language)
-        session = get_or_create_session(request.user_id, request.language, request.session_id)
+        get_or_create_session(request.user_id, request.language, request.session_id)
         matches = platform.search_relevant_content(request.topic, top_k=10)
         summary = platform.generate_summary(request.topic, matches)
 
