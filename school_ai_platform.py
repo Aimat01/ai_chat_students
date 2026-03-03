@@ -12,7 +12,6 @@ from openai import OpenAI
 import tiktoken
 import time
 import json
-import re
 from datetime import datetime
 from dotenv import load_dotenv
 from docx import Document
@@ -54,7 +53,7 @@ LANGUAGES = {
             "history": "history",
             "exit": "exit"
         },
-        "system_prompt": "You are an AI tutor for school students studying technical subjects: mathematics, IT, programming, electronics, computers, algorithms, and databases. Help ONLY with these technical topics. If a student asks about non-technical subjects (history, literature, biology, etc.), politely redirect them to technical topics. Explain concepts clearly with examples.",
+        "system_prompt": "You are an AI tutor for school students studying technical subjects: mathematics, IT, programming, electronics, computers, algorithms, and databases. Help ONLY with these technical topics. If a student asks about non-technical subjects (history, literature, biology, etc.), politely redirect them to technical topics. Explain concepts clearly with examples. Remember the conversation context and refer to previous messages when needed.",
         "messages": {
             "processing": "🔄 Processing materials...",
             "thinking": "🤔 Thinking...",
@@ -86,7 +85,8 @@ LANGUAGES = {
             "history": "история",
             "exit": "выход"
         },
-        "system_prompt": "Ты AI-репетитор для школьников технического направления: математика, информатика, программирование, электроника, компьютеры, алгоритмы, базы данных, сети. Помогай ТОЛЬКО по этим техническим темам. Если ученик спрашивает про нетехнические предметы (история, литература, биология и т.д.) — вежливо объясни, что специализируешься только на технических дисциплинах и предложи технический вопрос. Объясняй понятно, с примерами и кодом где нужно.",
+        "system_prompt": (
+            "Ты AI-репетитор для школьников технического направления: математика, информатика, программирование, электроника, компьютеры, алгоритмы, базы данных, сети. Помогай ТОЛЬКО по этим техническим темам. Если ученик спрашивает про нетехнические предметы (история, литература, биология и т.д.) — вежливо объясни, что специализируешься только на технических дисциплинах и предложи технический вопрос. Объясняй понятно, с примерами и кодом где нужно. Помни контекст разговора и ссылайся на предыдущие сообщения когда нужно.",
         "messages": {
             "processing": "🔄 Обрабатываю материалы...",
             "thinking": "🤔 Думаю...",
@@ -118,7 +118,7 @@ LANGUAGES = {
             "history": "тарих",
             "exit": "шығу"
         },
-        "system_prompt": "Сіз техникалық бағыттағы оқушыларға арналған AI-репетиторсыз: математика, информатика, бағдарламалау, электроника, компьютерлер, алгоритмдер, деректер базасы, желілер. ТЕК осы техникалық тақырыптар бойынша көмектесіңіз. Техникалық емес сұрақтар болса — тек техникалық пәндерге мамандандырылғаныңызды вежливо түсіндіріңіз.",
+        "system_prompt": "Сіз техникалық бағыттағы оқушыларға арналған AI-репетиторсыз: математика, информатика, бағдарламалау, электроника, компьютерлер, алгоритмдер, деректер базасы, желілер. ТЕК осы техникалық тақырыптар бойынша көмектесіңіз. Техникалық емес сұрақтар болса — тек техникалық пәндерге мамандандырылғаныңызды вежливо түсіндіріңіз. Күрделі тақырыптарды қарапайым тілмен түсіндіріңіз. Әңгіме контекстін есте сақтап, қажет болса алдыңғы хабарламаларға сілтеме жасаңыз."
         "messages": {
             "processing": "🔄 Материалдарды өңдеу...",
             "thinking": "🤔 Ойланып жатырмын...",
@@ -133,36 +133,36 @@ LANGUAGES = {
 class SchoolAIPlatformV3:
     """
     Улучшенная AI-платформа для школьников v3.0
-    
+
     Новое:
     - Контекст диалога
     - Мультиязычность
     - Поддержка EPUB
     """
-    
+
     def __init__(self, openai_api_key, pinecone_api_key, language="ru", index_name="school-topics"):
         self.lang = language
         self.t = LANGUAGES[language]
-        
+
         print(self.t["initializing"])
-        
+
         self.openai_client = OpenAI(api_key=openai_api_key)
         self.embedding_model = "text-embedding-3-small"
         self.chat_model = "gpt-5-mini"
-        
+
         from pinecone import Pinecone
         self.pc = Pinecone(api_key=pinecone_api_key)
         self.index_name = index_name
-        
+
         self.topics_list_file = "school_topics.json"
         self.chat_history_folder = Path("chat_history")
         self.chat_history_folder.mkdir(exist_ok=True)
-        
+
         try:
             existing = [idx.name for idx in self.pc.list_indexes()]
-        except:
+        except Exception:
             existing = []
-            
+
         if index_name not in existing:
             print(f"📚 Creating knowledge base: {index_name}")
             try:
@@ -175,7 +175,7 @@ class SchoolAIPlatformV3:
                 time.sleep(20)
             except Exception as e:
                 print(f"⚠️ Index creation error: {e}")
-        
+
         self.index = self.pc.Index(index_name)
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
         
@@ -187,9 +187,9 @@ class SchoolAIPlatformV3:
             "история": ["древний мир", "средние века"],
             "литература": ["русская литература", "мировая литература"],
         }
-        
+
         print(self.t["ready"] + "\n")
-    
+
     def save_topics_list(self, topics):
         """Сохранение списка обработанных топиков"""
         try:
@@ -197,43 +197,43 @@ class SchoolAIPlatformV3:
                 json.dump(topics, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"⚠️ Failed to save list: {e}")
-    
+
     def load_topics_list(self):
         """Загрузка списка топиков"""
         try:
             if Path(self.topics_list_file).exists():
                 with open(self.topics_list_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
-        except:
+        except Exception:
             pass
         return []
-    
+
     def save_chat_history(self, user_id, messages):
         """Сохранение истории чата"""
         try:
             history_file = self.chat_history_folder / f"user_{user_id}.json"
-            
+
             if history_file.exists():
                 with open(history_file, 'r', encoding='utf-8') as f:
                     history = json.load(f)
             else:
                 history = {"user_id": user_id, "sessions": []}
-            
+
             session = {
                 "timestamp": datetime.now().isoformat(),
                 "language": self.lang,
                 "messages": messages
             }
             history["sessions"].append(session)
-            
+
             with open(history_file, 'w', encoding='utf-8') as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
-            
+
             return True
         except Exception as e:
             print(f"⚠️ History save error: {e}")
             return False
-    
+
     def load_chat_history(self, user_id):
         """Загрузка истории чата"""
         try:
@@ -244,53 +244,48 @@ class SchoolAIPlatformV3:
         except Exception as e:
             print(f"⚠️ History load error: {e}")
         return None
-    
+
     def read_epub(self, path):
         """Чтение EPUB файлов"""
         if not EPUB_SUPPORT:
-            print(f"⚠️ EPUB not supported. Install: pip install ebooklib beautifulsoup4")
+            print("⚠️ EPUB not supported. Install: pip install ebooklib beautifulsoup4")
             return ""
-        
+
         try:
             book = epub.read_epub(path)
             text = []
-            
-            metadata = {
-                'title': book.get_metadata('DC', 'title'),
-                'creator': book.get_metadata('DC', 'creator'),
-            }
-            
+
             for item in book.get_items():
                 if item.get_type() == ebooklib.ITEM_DOCUMENT:
                     try:
                         content = item.get_content()
                         soup = BeautifulSoup(content, 'html.parser')
-                        
+
                         for script in soup(["script", "style"]):
                             script.decompose()
-                        
+
                         text_content = soup.get_text(separator='\n', strip=True)
-                        
+
                         lines = [line.strip() for line in text_content.split('\n') if line.strip()]
-                        
+
                         if lines:
                             text.append('\n'.join(lines))
                     except Exception as e:
                         print(f"    ⚠️ Error reading chapter: {e}")
                         continue
-            
+
             result = '\n\n'.join(text)
             print(f"    📊 Extracted {len(result)} characters from EPUB")
-            
+
             return result
         except Exception as e:
             print(f"⚠️ EPUB read error: {e}")
             return ""
-    
+
     def read_file(self, path):
         """Чтение файлов разных форматов"""
         ext = Path(path).suffix.lower()
-        
+
         if ext == '.txt':
             return self._read_txt(path)
         elif ext == '.docx':
@@ -300,17 +295,17 @@ class SchoolAIPlatformV3:
         elif ext == '.epub':
             return self.read_epub(path)
         return ""
-    
+
     def _read_txt(self, path):
         """Чтение TXT файлов"""
         for enc in ['utf-8', 'cp1251', 'windows-1251']:
             try:
                 with open(path, 'r', encoding=enc) as f:
                     return f.read()
-            except:
+            except Exception:
                 continue
         return ""
-    
+
     def _read_docx(self, path):
         """Чтение DOCX файлов"""
         try:
@@ -323,7 +318,7 @@ class SchoolAIPlatformV3:
         except Exception as e:
             print(f"⚠️ DOCX read error: {e}")
             return ""
-    
+
     def _read_pdf(self, path):
         """Чтение PDF файлов"""
         try:
@@ -338,7 +333,7 @@ class SchoolAIPlatformV3:
         except Exception as e:
             print(f"⚠️ PDF read error: {e}")
             return ""
-    
+
     def chunk_text(self, text, size=600, overlap=100):
         """Разбиение текста на чанки"""
         tokens = self.tokenizer.encode(text)
@@ -348,7 +343,7 @@ class SchoolAIPlatformV3:
             if chunk.strip():
                 chunks.append(chunk)
         return chunks
-    
+
     def create_embeddings(self, texts):
         """Создание эмбеддингов"""
         response = self.openai_client.embeddings.create(
@@ -356,15 +351,15 @@ class SchoolAIPlatformV3:
             input=texts
         )
         return [item.embedding for item in response.data]
-    
+
     def extract_book_title(self, path):
         """Извлечение названия книги из EPUB метаданных"""
         if not EPUB_SUPPORT:
             return None
-        
+
         try:
             book = epub.read_epub(path)
-            
+
             title_meta = book.get_metadata('DC', 'title')
             if title_meta and len(title_meta) > 0:
                 title = title_meta[0][0]
@@ -372,11 +367,11 @@ class SchoolAIPlatformV3:
                     title = title.strip()
                     title = ''.join(c for c in title if c.isalnum() or c in ' -_')
                     return title[:50]
-            
+
             return None
-        except:
+        except Exception:
             return None
-    
+
     def process_topic(self, path, topic_id, subject, topic_name):
         """Обработка топика"""
         try:
@@ -385,26 +380,26 @@ class SchoolAIPlatformV3:
                 if smart_title:
                     topic_name = smart_title
                     print(f"   📖 Book title: {smart_title}")
-            
+
             text = self.read_file(path)
             if len(text) < 50:
                 print(f"   ⚠️ Too little text extracted ({len(text)} chars)")
                 return False, None
-            
+
             print(f"   📖 Subject: {subject}")
             print(f"   📚 Topic: {topic_name}")
-            
+
             chunks = self.chunk_text(text)
             print(f"   📄 Chunks: {len(chunks)}")
-            
+
             if len(chunks) == 0:
-                print(f"   ⚠️ No chunks created from text")
+                print("   ⚠️ No chunks created from text")
                 return False, None
-            
+
             for i in range(0, len(chunks), 50):
                 batch = chunks[i:i + 50]
                 embeddings = self.create_embeddings(batch)
-                
+
                 vectors = []
                 for j, (chunk, emb) in enumerate(zip(batch, embeddings)):
                     vectors.append({
@@ -417,10 +412,10 @@ class SchoolAIPlatformV3:
                             "text": chunk[:800]
                         }
                     })
-                
+
                 self.index.upsert(vectors=vectors)
                 time.sleep(0.3)
-            
+
             return True, {
                 "subject": subject,
                 "topic": topic_name,
@@ -429,39 +424,41 @@ class SchoolAIPlatformV3:
         except Exception as e:
             print(f"❌ Error: {e}")
             return False, None
-    
+
     def process_materials_folder(self, folder):
         """Обработка папки с материалами"""
         materials_path = Path(folder)
         if not materials_path.exists():
             print(f"❌ Folder not found: {folder}")
             return
-        
-        files = list(materials_path.glob("**/*.txt")) + \
-                list(materials_path.glob("**/*.docx")) + \
-                list(materials_path.glob("**/*.pdf")) + \
-                list(materials_path.glob("**/*.epub"))
-        
+
+        files = (
+            list(materials_path.glob("**/*.txt")) +
+            list(materials_path.glob("**/*.docx")) +
+            list(materials_path.glob("**/*.pdf")) +
+            list(materials_path.glob("**/*.epub"))
+        )
+
         if not files:
             print(f"❌ No files in: {folder}")
             return
-        
+
         print(f"📚 Found materials: {len(files)}\n")
-        
+
         processed = []
         success = 0
-        
+
         for idx, f in enumerate(files, 1):
             parts = f.parts
             subject = "general"
             if len(parts) > 1:
                 subject = parts[-2] if parts[-2] != folder else "general"
-            
+
             topic_name = f.stem
-            
+
             print(f"[{idx}/{len(files)}] {f.name}")
             result, meta = self.process_topic(str(f), f"topic{idx:03d}", subject, topic_name)
-            
+
             if result and meta:
                 success += 1
                 processed.append({
@@ -471,19 +468,19 @@ class SchoolAIPlatformV3:
                     "topic": meta["topic"],
                     "chunks": meta["chunks"]
                 })
-                print(f"   ✅ Done\n")
+                print("   ✅ Done\n")
             else:
-                print(f"   ⚠️ Error\n")
-        
+                print("   ⚠️ Error\n")
+
         self.save_topics_list(processed)
         print(f"\n✅ Processed: {success}/{len(files)}")
-    
+
     def search_relevant_content(self, query, top_k=5):
         """Поиск релевантного контента"""
         emb = self.create_embeddings([query])[0]
         results = self.index.query(vector=emb, top_k=top_k, include_metadata=True)
         return results.matches
-    
+
     def generate_response_with_context(self, question, matches, conversation_history):
         """
         Генерация ответа с учётом контекста диалога
@@ -496,27 +493,28 @@ class SchoolAIPlatformV3:
                 "kk": "Бұл тақырып бойынша ақпарат таппадым. Сұрағыңызды басқаша тұжырымдаңыз."
             }
             return no_info.get(self.lang, no_info["en"])
-        
+
         context = "\n\n".join([
             f"[{m.metadata.get('full_name', 'Material')}]\n{m.metadata.get('text', '')}"
             for m in matches
         ])
-        
+
         enhanced_system_prompt = f"""{self.t["system_prompt"]}
 
-КРИТИЧЕСКИ ВАЖНО: 
+КРИТИЧЕСКИ ВАЖНО:
 - Внимательно читай ВСЮ историю разговора перед ответом
-- Если вопрос ссылается на предыдущую тему (например: "а это что?", "объясни попроще", "не понял"), ОБЯЗАТЕЛЬНО продолжай ТУ ЖЕ тему
+- Если вопрос ссылается на предыдущую тему (например: "а это что?", "объясни попроще", "не понял"),
+ОБЯЗАТЕЛЬНО продолжай ТУ ЖЕ тему
 - НЕ переключайся на другую тему, если вопрос - это продолжение предыдущего
 - Когда ученик говорит "не понял" или "попроще", объясняй ТУ ЖЕ самую тему проще, а не новую тему"""
-        
+
         messages = [
             {"role": "system", "content": enhanced_system_prompt}
         ]
-        
-        for msg in conversation_history[-10:]:  
+
+        for msg in conversation_history[-10:]:
             messages.append(msg)
-        
+
         if len(conversation_history) > 0:
             prompt = f"""Study materials:
 {context}
@@ -525,7 +523,8 @@ class SchoolAIPlatformV3:
 
 Student's current question: {question}
 
-Provide a clear explanation. If this question refers to previous messages (like "explain simpler", "I don't understand"), continue explaining THE SAME topic, not a new one."""
+Provide a clear explanation. If this question refers to previous messages
+(like "explain simpler", "I don't understand"), continue explaining THE SAME topic, not a new one."""
         else:
             prompt = f"""Study materials:
 {context}
@@ -533,23 +532,23 @@ Provide a clear explanation. If this question refers to previous messages (like 
 Student's question: {question}
 
 Provide a clear and detailed explanation. Use examples if needed."""
-        
+
         messages.append({"role": "user", "content": prompt})
-        
+
         response = self.openai_client.chat.completions.create(
             model=self.chat_model,
             messages=messages,
         )
-        
+
         return response.choices[0].message.content
-    
+
     def generate_summary(self, topic, matches):
         """Генерация конспекта"""
         if not matches:
             return "Could not find materials for summary."
-        
+
         context = "\n\n".join([m.metadata.get('text', '') for m in matches])
-        
+
         prompt = f"""Create a detailed summary on the topic: {topic}
 
 Materials:
@@ -562,7 +561,7 @@ Summary structure:
 4. Important points to remember
 
 Write concisely but informatively."""
-        
+
         response = self.openai_client.chat.completions.create(
             model=self.chat_model,
             messages=[
@@ -571,36 +570,36 @@ Write concisely but informatively."""
             ],
             temperature=0.5
         )
-        
+
         return response.choices[0].message.content
-    
+
     def chat_session(self, user_id):
         """Интерактивная сессия с контекстом диалога"""
         print(f"\n👤 User: {user_id}")
         print("="*60)
-        
+
         stats = self.index.describe_index_stats()
         if stats.total_vector_count == 0:
             print(f"\n{self.t['messages']['empty_db']}\n")
             return
-        
+
         print(f"✅ Available materials: {stats.total_vector_count} chunks")
-        print(f"\n💬 I'm ready to help with studying!")
-        print(f"Commands:")
+        print("\n💬 I'm ready to help with studying!")
+        print("Commands:")
         print(f"  • '{self.t['commands']['summary']} <topic>' - get summary")
         print(f"  • '{self.t['commands']['history']}' - view history")
         print(f"  • '{self.t['commands']['exit']}' - finish\n")
-        
+
         conversation_history = []
-        
+
         session_messages = []
-        
+
         while True:
             question = input(self.t["prompts"]["question"]).strip()
-            
+
             if not question:
                 continue
-            
+
             if question.lower() in [self.t['commands']['exit'], 'exit', 'quit']:
                 if session_messages:
                     saved = self.save_chat_history(user_id, session_messages)
@@ -608,66 +607,65 @@ Write concisely but informatively."""
                         print(f"💾 History saved to chat_history/user_{user_id}.json")
                 print(f"\n{self.t['messages']['goodbye']}")
                 break
-            
+
             if question.lower() == self.t['commands']['history']:
                 self.show_history(user_id)
                 continue
-            
+
             if question.lower().startswith(self.t['commands']['summary']):
                 topic = question[len(self.t['commands']['summary']):].strip()
                 if not topic:
                     print(f"🤖: Specify topic. Example: '{self.t['commands']['summary']} derivatives'\n")
                     continue
-                
+
                 print(f"\n{self.t['messages']['creating_summary']}\n")
                 matches = self.search_relevant_content(topic, top_k=10)
                 answer = self.generate_summary(topic, matches)
             else:
                 print(f"\n{self.t['messages']['thinking']}\n")
                 matches = self.search_relevant_content(question, top_k=5)
-                
+
                 answer = self.generate_response_with_context(question, matches, conversation_history)
-            
+
             print(f"🤖: {answer}\n")
             print("-"*60 + "\n")
-            
+
             conversation_history.append({"role": "user", "content": question})
             conversation_history.append({"role": "assistant", "content": answer})
-            
+
             session_messages.append({
                 "timestamp": datetime.now().isoformat(),
                 "question": question,
                 "answer": answer
             })
-            
+
             if len(session_messages) % 5 == 0:
                 self.save_chat_history(user_id, session_messages)
                 print(f"💾 Auto-saved ({len(session_messages)} messages)")
 
-    
     def show_history(self, user_id):
         """Показать историю чата"""
         history = self.load_chat_history(user_id)
         if not history or not history.get("sessions"):
             print("\n📭 History is empty\n")
             return
-        
+
         print("\n📜 Chat history:")
         print("="*60)
-        
+
         for idx, session in enumerate(history["sessions"][-5:], 1):
             timestamp = datetime.fromisoformat(session["timestamp"])
             lang = session.get("language", "ru")
             print(f"\nSession {idx} ({timestamp.strftime('%Y-%m-%d %H:%M')}) [{lang}]")
             print(f"Questions: {len(session['messages'])}")
-            
+
             if session["messages"]:
                 print("\nLast question:")
                 last = session["messages"][-1]
                 print(f"  Q: {last['question'][:60]}...")
-        
+
         print("\n" + "="*60 + "\n")
-    
+
     def show_subjects(self):
         """Показать доступные предметы"""
         print("\n📚 Available subjects:")
@@ -687,7 +685,7 @@ def select_language():
     print("2. Русский")
     print("3. Қазақша")
     print("="*60)
-    
+
     while True:
         choice = input("Choose (1-3): ").strip()
         if choice == "1":
@@ -703,76 +701,76 @@ def select_language():
 def main():
     lang = select_language()
     t = LANGUAGES[lang]
-    
+
     print("\n" + "="*60)
     print(t["welcome"])
     print("="*60 + "\n")
-    
+
     load_dotenv()
-    
+
     OPENAI_KEY = os.getenv("OPENAI_API_KEY")
     PINECONE_KEY = os.getenv("PINECONE_API_KEY")
-    
+
     if not OPENAI_KEY or not PINECONE_KEY:
         print("❌ Set API keys in .env file!")
         print("   OPENAI_API_KEY=your_key")
         print("   PINECONE_API_KEY=your_key")
         return
-    
+
     platform = SchoolAIPlatformV3(OPENAI_KEY, PINECONE_KEY, language=lang)
-    
+
     print(f"\n📚 {t['menu'].get('title', 'Main menu')}:")
     print("="*60)
     for key, value in t["menu"].items():
         print(f"{key} - {value}")
     print("="*60 + "\n")
-    
+
     while True:
         choice = input(t["prompts"]["choice"]).strip()
-        
+
         if choice == "1":
             folder = input(f"\n{t['prompts']['folder']}").strip()
             if not folder:
                 folder = "./materials"
-            
+
             if not Path(folder).exists():
                 print(f"\n❌ Folder '{folder}' not found!\n")
                 continue
-            
+
             print(f"\n{t['messages']['processing']}\n")
             platform.process_materials_folder(folder)
             print("\n✅ Done!\n")
-        
+
         elif choice == "2":
             user_id = input(f"\n{t['prompts']['user_id']}").strip()
             if not user_id:
                 user_id = "student"
-            
+
             platform.chat_session(user_id)
             print()
-        
+
         elif choice == "3":
             platform.show_subjects()
-        
+
         elif choice == "4":
             stats = platform.index.describe_index_stats()
             topics = platform.load_topics_list()
-            
+
             print("\n📊 Knowledge base statistics:")
             print("="*60)
             print(f"Total text chunks: {stats.total_vector_count}")
             print(f"Loaded topics: {len(topics)}")
-            
+
             if topics:
                 print("\n📚 Last loaded materials:")
                 for topic in topics[-5:]:
                     print(f"  • {topic['subject']}: {topic['topic']} ({topic['chunks']} chunks)")
             print("="*60 + "\n")
-        
+
         elif choice == "0":
             print(f"\n{t['messages']['goodbye']}")
             break
-        
+
         else:
             print("❌ Invalid choice\n")
 
